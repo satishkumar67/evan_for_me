@@ -623,8 +623,8 @@ export class Container extends Logger {
     const result: ContainerShareConfig = {
       accountId,
     };
-    const read = [];
-    const readWrite = [];
+    let read: string[];
+    let readWrite: string[];
     const sha3 = (...args) => this.options.nameResolver.soliditySha3(...args);
     const [description, sharings] = await Promise.all([
       this.getDescription(),
@@ -646,18 +646,23 @@ export class Container extends Logger {
             property, enumType, ModificationType.Set),
         );
       };
-      const tasks = Object.keys(description.dataSchema).map(property => async () => {
+      const properties = Object.keys(description.dataSchema);
+      const readWriteAll = [...new Array(properties.length)];
+      const readAll = [...new Array(properties.length)];
+      const tasks = properties.map((property, i) => async () => {
         if (property === 'type') {
           // do not list type property
           return;
         }
         if (await getCanWrite(property, description.dataSchema[property].type)) {
-          readWrite.push(property);
+          readWriteAll[i] = property;
         } else if (sharings[sha3(accountId)] && sharings[sha3(accountId)][sha3(property)]) {
-          read.push(property);
+          readAll[i] = property;
         }
       });
       await Throttle.all(tasks);
+      readWrite = readWriteAll.filter(property => !!property);
+      read = readAll.filter(property => !!property);
     }
     if (read.length) {
       result.read = read;
