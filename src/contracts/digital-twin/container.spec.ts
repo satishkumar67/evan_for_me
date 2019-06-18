@@ -37,6 +37,7 @@ import {
 } from '@evan.network/dbcp';
 
 import { accounts } from '../../test/accounts';
+import { Sharing } from '../sharing';
 import { TestUtils } from '../../test/test-utils';
 import { VerificationsStatus } from '../../verifications/verifications';
 import {
@@ -66,10 +67,11 @@ describe('Container', function() {
     dbcpVersion: 2,
   };
   let runtimes: { [id: string]: ContainerOptions; } = {};
+  let web3: any;
 
   before(async () => {
     dfs = await TestUtils.getIpfs();
-    const web3 = await TestUtils.getWeb3();
+    web3 = await TestUtils.getWeb3();
     executor = await TestUtils.getExecutor(web3);
     const sha3 = (...args) => web3.utils.soliditySha3(...args);
     const sha9 = (accountId1, accountId2) => sha3(...[sha3(accountId1), sha3(accountId2)].sort());
@@ -145,6 +147,22 @@ describe('Container', function() {
 
       expect(await container.getEntry('testField')).to.eq(randomString);
       expect(await consumerContainer.getEntry('testField')).to.eq(randomString);
+    });
+
+    it('adds keys for the owner in custom plugins', async () => {
+      const plugin: ContainerPlugin = JSON.parse(JSON.stringify(Container.plugins.metadata));
+      plugin.template.properties.testField = {
+        dataSchema: { type: 'string' },
+        permissions: { 0: ['set'] },
+        type: 'entry',
+      };
+      const container = await Container.create(runtimes[owner], { ...defaultConfig, plugin });
+
+      const sharing = await TestUtils.getSharing(web3, dfs);
+      const contractSharings = await sharing.getSharings(await container.getContractAddress());
+      const sha3 = (toHash) => runtimes[accounts[0]].nameResolver.soliditySha3(toHash);
+      const ownerKeys = contractSharings[sha3(accounts[0])];
+      expect(ownerKeys).to.haveOwnProperty(sha3('testField'));
     });
 
     it('can set and get entries for properties defined in (custom) plugin', async () => {

@@ -470,6 +470,37 @@ export class Container extends Logger {
   }
 
   /**
+   * ensure that current account has a key for given entry in sharings
+   *
+   * @param      {string}  entryName  name of an entry to ensure a key for
+   */
+  public async ensureKeyInSharing(entryName: string): Promise<void> {
+    await this.getMutex('sharing').runExclusive(async () => {
+      let [key, genericKey] = await Promise.all([
+        this.options.sharing.getKey(
+          this.contract.options.address, this.config.accountId, entryName),
+        this.options.sharing.getKey(
+          this.contract.options.address, this.config.accountId, '*'),
+      ]);
+      if (!key || key === genericKey) {
+        // clear cache to remove failed key request
+        this.options.sharing.clearCache();
+        this.options.dataContract.clearSharingCache();
+        const cryptor = this.options.cryptoProvider.getCryptorByCryptoAlgo('aes');
+        key = await cryptor.generateKey();
+        await this.options.sharing.addSharing(
+          this.contract.options.address,
+          this.config.accountId,
+          this.config.accountId,
+          entryName,
+          0,
+          key,
+        );
+      }
+    });
+  }
+
+  /**
    * Ensure that container supports given property.
    *
    * @param      {string}  propertyName  name of an entry or list
@@ -1078,32 +1109,6 @@ export class Container extends Logger {
   }
 
   /**
-   * ensure that current account has a key for given entry in sharings
-   *
-   * @param      {string}  entryName  name of an entry to ensure a key for
-   */
-  private async ensureKeyInSharing(entryName: string): Promise<void> {
-    let key = await this.options.sharing.getKey(
-      this.contract.options.address, this.config.accountId, entryName);
-    if (!key) {
-      // clear cache to remove failed key request
-      this.options.sharing.clearCache();
-      const cryptor = this.options.cryptoProvider.getCryptorByCryptoAlgo('aes');
-      key = await cryptor.generateKey();
-      await this.getMutex('sharing').runExclusive(async () => {
-        await this.options.sharing.addSharing(
-          this.contract.options.address,
-          this.config.accountId,
-          this.config.accountId,
-          entryName,
-          0,
-          key,
-        );
-      });
-    }
-  }
-
-  /**
    * ensure, that current user has permission to set values on given property; note that this
    * function is for internal use in `Container` and skips a check to verify, that given account is
    * in specified role; used out of context, this may check check if an account has permissions on a
@@ -1323,6 +1328,11 @@ async function applyPlugin(
   for (let propertyName of Object.keys(properties)) {
     const property: ContainerTemplateProperty = properties[propertyName];
     const permissionTasks = [];
+
+    // create separate keys for each field defined in properties
+    permissionTasks.push(async () => container.ensureKeyInSharing(propertyName));
+
+    // allow configured roles on field
     for (let role of Object.keys(property.permissions)) {
       for (let modification of property.permissions[role]) {
         // allow setting this field; if value is specified, add value AFTER this

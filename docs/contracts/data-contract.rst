@@ -869,6 +869,35 @@ Example
 
 
 
+------------------------------------------------------------------------------
+
+.. data-contract_clearSharingCache:
+
+clearSharingCache
+===================
+
+.. code-block:: typescript
+
+  dataContract.clearSharingCache();
+
+Clear cache of underlying sharings. This can be used, when sharings have been updated and data contract should use keys introduces with these updates.
+
+-------
+Returns
+-------
+
+``void``: does not return any value
+
+-------
+Example
+-------
+
+.. code-block:: typescript
+
+  cdataContract.clearSharingCache();
+
+
+
 .. required for building markup
 
 .. |source contractLoader| replace:: ``ContractLoader``

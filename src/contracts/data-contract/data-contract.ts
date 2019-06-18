@@ -238,6 +238,13 @@ export class DataContract extends BaseContract {
   }
 
   /**
+   * clear cache of underlying sharings
+   */
+  public clearSharingCache(): void {
+    this.options.sharing.clearCache();
+  }
+
+  /**
    * decrypt input envelope return decrypted envelope
    *
    * @param      {string}        toDecrypt     data to decrypt
